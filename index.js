@@ -62,13 +62,23 @@ class ImportJsonHandler extends Handler {
             }
 
             //make content in markdown format
-            const cleanHtml = (str) => (str ? str.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : '');
+            const convertHtmlToMarkdown = (html) => {
+                if (!html) return '';
+                let text = html;
+                text = text.replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
+                text = text.replace(/<img [^>]*src="([^"]+)"[^>]*>/gi, '![]($1)');
+                text = text.replace(/<br\s*\/?>/gi, '\n');
+                text = text.replace(/<\/p>/gi, '\n\n');
+                text = text.replace(/<[^>]*>?/gm, '');
+                text = text.replace(/&nbsp;/g, ' ').replace(/&hellip;/g, '...');
+                return text.trim();
+            };
             const contentMarkdown = buildContent({
-                description: cleanHtml(data.content),
-                input: cleanHtml(data.theinput),
-                output: cleanHtml(data.theoutput),
+                description: convertHtmlToMarkdown(data.content),
+                input: convertHtmlToMarkdown(data.theinput),
+                output: convertHtmlToMarkdown(data.theoutput),
                 samples: [[data.sampleinput, data.sampleoutput]],
-                hint: cleanHtml(data.hint),
+                hint: convertHtmlToMarkdown(data.hint),
             }, 'markdown');
 
             //setting up problems
