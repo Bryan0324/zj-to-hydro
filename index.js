@@ -74,12 +74,31 @@ class ImportJsonHandler extends Handler {
 
         // init config.yaml
         const tasks = [];
-        const config = {
-            time: Array.isArray(data.timelimits) ? `${data.timelimits[0]}s` : `${data.timelimits}s`,
-            memory: `${data.memorylimit}mb`,
-            subtasks: [],
-        };
+            const config = {
+                type: 'default',
+                time: Array.isArray(data.timelimits) ? `${data.timelimits[0]}s` : `${data.timelimits}s`,
+                memory: `${data.memorylimit}mb`,
+                subtasks: [],
+            };
 
+            if (!data.timelimits) config.time = '1s';
+            if (!data.memorylimit) config.memory = '64mb';
+
+            for (let i = 0; i < data.testfilelength; i++) {
+                const inName = `${i + 1}.in`;
+                const outName = `${i + 1}.out`;
+                
+                tasks.push(ProblemModel.addTestdata(domainId, pid, inName, Buffer.from(data.testinfiles[i])));
+                tasks.push(ProblemModel.addTestdata(domainId, pid, outName, Buffer.from(data.testoutfiles[i])));
+
+                config.subtasks.push({
+                    cases: [{ input: inName, output: outName }]
+                });
+            }
+
+            tasks.push(ProblemModel.addTestdata(domainId, pid, 'config.yaml', Buffer.from(yaml.dump(config))));
+
+        //making testdata
         for (let i = 0; i < data.testfilelength; i++) {
             const inName = `${i + 1}.in`;
             const outName = `${i + 1}.out`;
