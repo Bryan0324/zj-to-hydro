@@ -1,5 +1,3 @@
-import os from 'os';
-import path from 'path';
 import AdmZip from 'adm-zip';
 import { NodeHtmlMarkdown } from 'node-html-markdown';
 import { promises as fsNative } from 'fs';
