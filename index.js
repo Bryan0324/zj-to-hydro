@@ -47,7 +47,22 @@ class ImportJsonHandler extends Handler {
 
         const convertHtmlToMarkdown = (html) => {
             if (!html) return '';
-            return nhm.translate(html).trim();
+            const latexBlocks = [];
+            const katexRegex = /<span[^>]*class="katex"[^>]*>.*?<\/span>([\s]*<\/span>)?/gi;
+            let processedHtml = html.replace(katexRegex, (match) => {
+                const placeholder = `[[LATEX_TEMP_${latexBlocks.length}]]`;
+                latexBlocks.push(match);
+                return placeholder;
+            });
+            let markdown = nhm.translate(processedHtml);
+            latexBlocks.forEach((originalHtml, index) => {
+                markdown = markdown.replace(`[[LATEX_TEMP_${index}]]`, originalHtml);
+            });
+            markdown = markdown.replace(/&nbsp;/g, ' ')
+                               .replace(/&hellip;/g, '...')
+                               .replace(/<br\s*\/?>/gi, '\n');
+
+            return markdown.trim();
         };
 
         const contentMarkdown = buildContent({
@@ -74,8 +89,10 @@ class ImportJsonHandler extends Handler {
         for (let i = 0; i < data.testfilelength; i++) {
             const inName = `${i + 1}.in`;
             const outName = `${i + 1}.out`;
-            tasks.push(ProblemModel.addTestdata(domainId, pid, inName, Buffer.from(data.testinfiles[i] || '')));
-            tasks.push(ProblemModel.addTestdata(domainId, pid, outName, Buffer.from(data.testoutfiles[i] || '')));
+            const inContent = data.testinfiles && data.testinfiles[i] ? data.testinfiles[i] : "";
+            const outContent = data.testoutfiles && data.testoutfiles[i] ? data.testoutfiles[i] : "";
+            tasks.push(ProblemModel.addTestdata(domainId, pid, inName, Buffer.from(inContent || '')));
+            tasks.push(ProblemModel.addTestdata(domainId, pid, outName, Buffer.from(outContent   || '')));
             config.subtasks.push({
                 cases: [{ input: inName, output: outName }]
             });
