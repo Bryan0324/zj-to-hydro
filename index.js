@@ -47,22 +47,21 @@ class ImportJsonHandler extends Handler {
 
         const convertHtmlToMarkdown = (html) => {
             if (!html) return '';
-            const latexBlocks = [];
-            const katexRegex = /<span[^>]*class="katex"[^>]*>.*?<\/span>([\s]*<\/span>)?/gi;
-            let processedHtml = html.replace(katexRegex, (match) => {
-                const placeholder = `[[LATEX_TEMP_${latexBlocks.length}]]`;
-                latexBlocks.push(match);
-                return placeholder;
-            });
+            // Remove unnecessary backslashes before special characters throughout HTML
+            let cleanedHtml = html
+            
+            const processedHtml = cleanedHtml.replace(
+                /<span class="katex"><span class="katex-mathml">([^<]+)<\/span><\/span>/g,
+                (_, mathml) => {
+                    const normalizedMath = mathml
+                        .replace(/\\\\/g, '\\')     // collapse double backslashes
+                        .replace(/\\([_()[\]{}])/g, '$1'); // drop escapes before common math chars
+                    return `$${normalizedMath}$`;
+                },
+            );
+            console.log('Converting HTML to Markdown:', processedHtml);
             let markdown = nhm.translate(processedHtml);
-            latexBlocks.forEach((originalHtml, index) => {
-                markdown = markdown.replace(`[[LATEX_TEMP_${index}]]`, originalHtml);
-            });
-            markdown = markdown.replace(/&nbsp;/g, ' ')
-                               .replace(/&hellip;/g, '...')
-                               .replace(/<br\s*\/?>/gi, '\n');
-
-            return markdown.trim();
+            return markdown.trim().replace(/\\([_()[\]{}\\*`~<>|^&\-+=!?;:'"@#$%])/g, '$1');
         };
 
         const contentMarkdown = buildContent({
