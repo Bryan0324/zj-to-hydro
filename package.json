@@ -19,9 +19,17 @@
   },
   "homepage": "https://github.com/Miyun-owo/zj-to-hydro#readme",
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "js-yaml": "^4.1.1",
-    "jszip": "^3.10.1",
-    "adm-zip": "^0.5.x",
-    "node-html-markdown": "^1.3.0"
+    "jsdom": "^27.4.0",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^25.0.9",
+    "node-pandoc": "^0.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }

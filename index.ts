@@ -1,12 +1,11 @@
-import os from 'os';
-import path from 'path';
 import AdmZip from 'adm-zip';
-import { NodeHtmlMarkdown } from 'node-html-markdown';
 import { promises as fsNative } from 'fs';
 import {
-    buildContent, Handler, PERM,
-    ProblemModel, Schema, ValidationError, yaml,
+    buildContent, Context, Handler, PERM,
+    ProblemModel, Schema, ValidationError, yaml, 
 } from 'hydrooj';
+
+import { htmlToOJMarkdown } from './src/zjHtmlToMarkdown';
 
 // define ZJson Schema
 const ZJsonSchema = Schema.object({
@@ -26,14 +25,13 @@ const ZJsonSchema = Schema.object({
     timelimits: Schema.any(),
     memorylimit: Schema.number(),
 });
-const nhm = new NodeHtmlMarkdown();
 
 class ImportJsonHandler extends Handler {
-    async processZJson(domainId, rawData) {
+    async processZJson(domainId: string, rawData: any) {
         let data;
         try {
             data = ZJsonSchema(rawData);
-        } catch (e) {
+        } catch (e : any) {
             throw new ValidationError('file', null, `Invalid ZJSON content: ${e.message}`);
         }
         const pidRegex = /^[a-zA-Z]\d{3}$/;
@@ -45,31 +43,22 @@ class ImportJsonHandler extends Handler {
             throw new ValidationError('problemid', `PID ${data.problemid} already exists.`);
         }
 
-        const convertHtmlToMarkdown = (html) => {
+        const convertHtmlToMarkdown = async (html: string): Promise<string> => {
             if (!html) return '';
-            // Remove unnecessary backslashes before special characters throughout HTML
-            let cleanedHtml = html
-            
-            const processedHtml = cleanedHtml.replace(
-                /<span class="katex"><span class="katex-mathml">([^<]+)<\/span><\/span>/g,
-                (_, mathml) => {
-                    const normalizedMath = mathml
-                        .replace(/\\\\/g, '\\')     // collapse double backslashes
-                        .replace(/\\([_()[\]{}])/g, '$1'); // drop escapes before common math chars
-                    return `$${normalizedMath}$`;
-                },
-            );
-            console.log('Converting HTML to Markdown:', processedHtml);
-            let markdown = nhm.translate(processedHtml);
-            return markdown.trim().replace(/\\([_()[\]{}\\*`~<>|^&\-+=!?;:'"@#$%])/g, '$1');
+            console.log('\n\n\nConverting HTML to Markdown. Original HTML:', html);
+             // Remove unnecessary backslashes before special characters throughout HTML
+            const result: string = htmlToOJMarkdown(html);
+            console.log('\n\n\nConverted HTML to Markdown:', result || '');
+            console.log('--- End of Conversion ---\n\n\n');
+            return result || '';
         };
 
         const contentMarkdown = buildContent({
-            description: convertHtmlToMarkdown(data.content),
-            input: convertHtmlToMarkdown(data.theinput),
-            output: convertHtmlToMarkdown(data.theoutput),
+            description: (await convertHtmlToMarkdown(data.content)),
+            input: await convertHtmlToMarkdown(data.theinput),
+            output: await convertHtmlToMarkdown(data.theoutput),
             samples: [[data.sampleinput, data.sampleoutput]],
-            hint: convertHtmlToMarkdown(data.hint),
+            hint: await convertHtmlToMarkdown(data.hint),
         }, 'markdown');
         const tags = data.keywords ? (typeof data.keywords === 'string' ? JSON.parse(data.keywords) : data.keywords) : [];
         const pid = await ProblemModel.add(
@@ -81,7 +70,7 @@ class ImportJsonHandler extends Handler {
             type: 'default',
             time: Array.isArray(data.timelimits) ? `${data.timelimits[0]}s` : `${data.timelimits}s`,
             memory: `${data.memorylimit}mb`,
-            subtasks: [],
+            subtasks: [] as any[],
         };
         if (!data.timelimits) config.time = '3s';
         if (!data.memorylimit) config.memory = '100mb';
@@ -100,7 +89,7 @@ class ImportJsonHandler extends Handler {
         await Promise.all(tasks);
     }
 
-    async fromFile(domainId, filePath) {
+    async fromFile(domainId: string, filePath: string) {
         const buf = await fsNative.readFile(filePath);
         console.log('DEBUG: File head bytes:', buf[0], buf[1], buf[2], buf[3]);
         console.log('DEBUG: Is Buffer?', Buffer.isBuffer(buf));
@@ -111,15 +100,21 @@ class ImportJsonHandler extends Handler {
             try {
                 const zip = new AdmZip(buf);
                 const zipEntries = zip.getEntries();
-                const jsonEntry = zipEntries.find(entry =>
-                    entry.entryName.toLowerCase().endsWith('.json') ||
+                const jsonEntries = zipEntries.filter((entry: AdmZip.IZipEntry) =>
                     entry.entryName.toLowerCase().endsWith('.zjson')
                 );
 
-                if (!jsonEntry) throw new Error('ZIP 內找不到任何 .json 或 .zjson');
-                const rawData = JSON.parse(jsonEntry.getData().toString('utf8'));
-                await this.processZJson(domainId, rawData);
-            } catch (e) {
+                if (jsonEntries.length === 0) throw new ValidationError('ZIP 內找不到任何 .zjson');
+                
+                for (const jsonEntry of jsonEntries) {
+                    const rawData = JSON.parse(jsonEntry.getData().toString('utf8'));
+                    try {
+                        await this.processZJson(domainId, rawData);
+                    } catch (e) {
+                        console.error(`Error processing ${jsonEntry.entryName}:`, e);
+                    }
+                }
+            } catch (e: any) {
                 throw new ValidationError('file', null, `ZIP內部解析錯誤: ${e.message}`);
             }
         } else {
@@ -127,7 +122,7 @@ class ImportJsonHandler extends Handler {
             try {
                 const rawData = JSON.parse(buf.toString('utf8'));
                 await this.processZJson(domainId, rawData);
-            } catch (e) {
+            } catch (e: any) {
                 throw new ValidationError('file', null, `純JSON解析失敗: ${e.message}`);
             }
         }
@@ -137,7 +132,7 @@ class ImportJsonHandler extends Handler {
         this.response.template = 'problem_import.html';
     }
 
-    async post({ domainId }) {
+    async post({ domainId }: { domainId: string }) {
         console.log('Post started');
         const file = this.request.files.file;
         if (!file) throw new ValidationError('file');
@@ -147,17 +142,21 @@ class ImportJsonHandler extends Handler {
             await this.fromFile(domainId, file.filepath);
             console.log('fromFile finished');
             this.response.redirect = this.url('problem_main', { domainId });
-        } catch (e) {
+        } catch (e: any) {
             console.error('Import Error Trace:', e);
             throw new ValidationError('file', null, `導入失敗：${e.message}`);
         }
     }
 }
 
-export async function apply(ctx) {
+export async function apply(ctx : Context) {
     ctx.Route('problem_import_json', '/problem/import/json', ImportJsonHandler, PERM.PERM_CREATE_PROBLEM);
     ctx.injectUI('ProblemAdd', 'problem_import_json', { icon: 'copy', text: 'From JSON/ZIP Export' });
     ctx.i18n.load('zh', {
         'From JSON/ZIP Export': '從 JSON/ZIP 導入(DDJ-v1匯入)',
     });
 }
+
+
+
+
