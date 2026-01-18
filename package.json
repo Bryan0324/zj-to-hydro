@@ -1,8 +1,8 @@
 {
   "name": "zj-to-hydro",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "dandanjudge v1 to v2 transfer tool",
-  "main": "convert.js",
+  "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -11,7 +11,8 @@
     "url": "git+https://github.com/Miyun-owo/zj-to-hydro.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Miyun-owo",
+  "contributors": ["Bryan0324//grasscat"],
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
