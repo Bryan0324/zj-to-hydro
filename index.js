@@ -1,6 +1,7 @@
 import os from 'os';
 import path from 'path';
 import AdmZip from 'adm-zip';
+import { NodeHtmlMarkdown } from 'node-html-markdown';
 import { promises as fsNative } from 'fs';
 import {
     buildContent, Handler, PERM,
@@ -25,6 +26,7 @@ const ZJsonSchema = Schema.object({
     timelimits: Schema.any(),
     memorylimit: Schema.number(),
 });
+const nhm = new NodeHtmlMarkdown();
 
 class ImportJsonHandler extends Handler {
     async processZJson(domainId, rawData) {
@@ -45,14 +47,7 @@ class ImportJsonHandler extends Handler {
 
         const convertHtmlToMarkdown = (html) => {
             if (!html) return '';
-            let text = html;
-            text = text.replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
-            text = text.replace(/<img [^>]*src="([^"]+)"[^>]*>/gi, '![]($1)');
-            text = text.replace(/<br\s*\/?>/gi, '\n');
-            text = text.replace(/<\/p>/gi, '\n\n');
-            text = text.replace(/<[^>]*>?/gm, '');
-            text = text.replace(/&nbsp;/g, ' ').replace(/&hellip;/g, '...');
-            return text.trim();
+            return nhm.translate(html).trim();
         };
 
         const contentMarkdown = buildContent({
@@ -105,11 +100,11 @@ class ImportJsonHandler extends Handler {
                     entry.entryName.toLowerCase().endsWith('.zjson')
                 );
 
-                if (!jsonEntry) throw new Error('Cannnot find any .json or .zjson in the ZIP');
+                if (!jsonEntry) throw new Error('ZIP 內找不到任何 .json 或 .zjson');
                 const rawData = JSON.parse(jsonEntry.getData().toString('utf8'));
                 await this.processZJson(domainId, rawData);
             } catch (e) {
-                throw new ValidationError('file', null, `ZIP File Error: ${e.message}`);
+                throw new ValidationError('file', null, `ZIP內部解析錯誤: ${e.message}`);
             }
         } else {
             console.log('DEBUG: Plain JSON logic triggered');
@@ -117,7 +112,7 @@ class ImportJsonHandler extends Handler {
                 const rawData = JSON.parse(buf.toString('utf8'));
                 await this.processZJson(domainId, rawData);
             } catch (e) {
-                throw new ValidationError('file', null, `Json file error: ${e.message}`);
+                throw new ValidationError('file', null, `純JSON解析失敗: ${e.message}`);
             }
         }
     }
@@ -138,7 +133,7 @@ class ImportJsonHandler extends Handler {
             this.response.redirect = this.url('problem_main', { domainId });
         } catch (e) {
             console.error('Import Error Trace:', e);
-            throw new ValidationError('file', null, `Import failed: ${e.message}`);
+            throw new ValidationError('file', null, `導入失敗：${e.message}`);
         }
     }
 }
